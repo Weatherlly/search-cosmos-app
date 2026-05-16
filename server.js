@@ -9,7 +9,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = 3000;
 
-const MEU_TOKEN = 'wMAjqHMw3_Oc5STzl5TJuQ';
+const MEU_TOKEN = 'Up0lnH1bT2xKJYOdOHnq6A';
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
