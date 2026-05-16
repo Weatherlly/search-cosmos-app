@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consulta Cosmos em Lote</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f6f9;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #0056b3;
+            margin-top: 0;
+        }
+        p {
+            color: #666;
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            resize: vertical;
+            font-family: monospace;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #28a745;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            margin-top: 15px;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .loading {
+            display: none;
+            margin-top: 15px;
+            font-weight: bold;
+            color: #0056b3;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 30px;
+        }
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #0056b3;
+            color: white;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        .badge-sucesso {
+            background-color: #28a745;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .badge-erro {
+            background-color: #dc3545;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Consulta de Produtos (Cosmos API)</h1>
+    <p>Insira os códigos de barra (GTIN/EAN) abaixo. Para buscar em lote, separe cada código por uma <strong>quebra de linha (Enter)</strong>.</p>
+    
+    <textarea id="eanInput" placeholder="Exemplo:&#10;78912359&#10;7891910000197"></textarea>
+    
+    <button id="btnBuscar" onclick="processarConsulta()">Consultar Códigos</button>
+    <div id="loadingText" class="loading">Buscando informações na API do Cosmos, aguarde...</div>
+
+    <table id="resultadoTabela" style="display: none;">
+        <thead>
+            <tr>
+                <th>GTIN/EAN</th>
+                <th>Status</th>
+                <th>Descrição</th>
+                <th>Marca</th>
+                <th>Tipo Unidade</th>
+                <th>CEST</th>
+                <th>NCM</th>
+            </tr>
+        </thead>
+        <tbody id="resultadoCorpo">
+            <!-- Inserção dinâmica via JS -->
+        </tbody>
+    </table>
+</div>
+
+<script>
+    async function processarConsulta() {
+        const input = document.getElementById('eanInput').value;
+        const btn = document.getElementById('btnBuscar');
+        const loading = document.getElementById('loadingText');
+        const tabela = document.getElementById('resultadoTabela');
+        const corpoTabela = document.getElementById('resultadoCorpo');
+
+        // Divide o texto do textarea por quebra de linha e limpa espaços vazios
+        const eans = input.split('\n')
+                          .map(ean => ean.trim())
+                          .filter(ean => ean.length > 0);
+
+        if (eans.length === 0) {
+            alert('Por favor, digite pelo menos um código de barras.');
+            return;
+        }
+
+        // Interface em estado de carregamento
+        btn.disabled = true;
+        loading.style.display = 'block';
+        tabela.style.display = 'none';
+        corpoTabela.innerHTML = '';
+
+        try {
+            const resposta = await fetch('/api/consultar-eans', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ eans })
+            });
+
+            if (!resposta.ok) {
+                throw new Error('Falha interna no servidor ao processar o lote.');
+            }
+
+            const dados = await resposta.json();
+
+            // Renderiza cada linha na tabela
+            dados.forEach(produto => {
+                const tr = document.createElement('tr');
+                
+                const statusBadge = produto.status === 'Sucesso' 
+                    ? `<span class="badge-sucesso">Sucesso</span>` 
+                    : `<span class="badge-erro">Erro</span>`;
+
+                tr.innerHTML = `
+                    <td><strong>${produto.gtin}</strong></td>
+                    <td>${statusBadge}</td>
+                    <td>${produto.descricao}</td>
+                    <td>${produto.marca}</td>
+                    <td>${produto.unidade}</td>
+                    <td>${produto.cest}</td>
+                    <td>${produto.ncm}</td>
+                `;
+                corpoTabela.appendChild(tr);
+            });
+
+            tabela.style.display = 'table';
+
+        } catch (erro) {
+            alert(erro.message);
+        } finally {
+            btn.disabled = false;
+            loading.style.display = 'none';
+        }
+    }
+</script>
+
+</body>
+</html>
