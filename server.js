@@ -9,14 +9,14 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = 3000;
 
-// Token oficial fornecido por você
 const MEU_TOKEN = 'wMAjqHMw3_Oc5STzl5TJuQ';
 
 app.use(express.json());
-// Servir arquivos estáticos da pasta 'public'
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Rota para processar a busca (individual ou lote)
+// Função utilitária para pausar a execução (Delay)
+const aguardar = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 app.post('/api/consultar-eans', async (expressReq, expressRes) => {
     const { eans } = expressReq.body;
 
@@ -26,10 +26,15 @@ app.post('/api/consultar-eans', async (expressReq, expressRes) => {
 
     const resultados = [];
 
-    // Processa cada EAN enviado
     for (const gtin of eans) {
         const limpoGtin = gtin.trim();
         if (!limpoGtin) continue;
+
+        // Se já não for o primeiro item, aguarda 1.5 segundos antes da próxima requisição
+        if (resultados.length > 0) {
+            console.log(`Aguardando 1.5s antes de consultar o próximo EAN (${limpoGtin})...`);
+            await aguardar(1500); 
+        }
 
         const url = `https://api.cosmos.bluesoft.com.br/gtins/${limpoGtin}.json`;
 
@@ -44,10 +49,15 @@ app.post('/api/consultar-eans', async (expressReq, expressRes) => {
             });
 
             if (!respostaCosmos.ok) {
+                let mensagemErro = `Erro na API (Status ${respostaCosmos.status})`;
+                if (respostaCosmos.status === 429) {
+                    mensagemErro = 'Erro 429: Limite de requisições excedido.';
+                }
+                
                 resultados.push({
                     gtin: limpoGtin,
                     status: 'Erro',
-                    descricao: `Erro na API (Status ${respostaCosmos.status})`,
+                    descricao: mensagemErro,
                     cest: '-',
                     unidade: '-',
                     marca: '-',
@@ -58,7 +68,6 @@ app.post('/api/consultar-eans', async (expressReq, expressRes) => {
 
             const dados = await respostaCosmos.json();
 
-            // Tratamento do CEST
             let cestExibicao = 'Não associado';
             if (dados.cest) {
                 cestExibicao = typeof dados.cest === 'object' ? (dados.cest.code || 'Não associado') : dados.cest;
@@ -66,7 +75,6 @@ app.post('/api/consultar-eans', async (expressReq, expressRes) => {
                 cestExibicao = typeof dados.ncm.cest === 'object' ? (dados.ncm.cest.code || 'Não associado') : dados.ncm.cest;
             }
 
-            // Tratamento da Unidade Comercial
             let unidadeComercial = dados.commercial_unit || (dados.gtin_row && dados.gtin_row.commercial_unit);
             if (!unidadeComercial) {
                 if (dados.net_weight && dados.net_weight > 0) {
